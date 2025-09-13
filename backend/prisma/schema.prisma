@@ -1,0 +1,270 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      UserRole @default(CLIENT)
+  validated Boolean  @default(false)  // Nouveau champ pour la validation admin
+  
+  // Relations
+  animals        Animal[]
+  appointments   Appointment[]
+  treatmentNotes TreatmentNote[]
+  blogPosts      BlogPost[]
+  files          File[]
+  auditLogs      AuditLog[]
+  todos          Todo[]   
+
+  // Index pour améliorer les performances
+  @@index([validated])
+  @@index([role, validated])
+  @@map("users")
+}
+
+model Animal {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String
+  breed     String
+  age       Int
+  weight    Float?
+  gender    AnimalGender
+  notes     String?
+  
+  // Relations
+  owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId       String
+  appointments  Appointment[]
+  treatmentNotes TreatmentNote[]
+  files         File[]
+  
+  @@map("animals")
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  title       String
+  titleFr     String
+  description String
+  descriptionFr String
+  duration    Int      // in minutes
+  price       Float
+  active      Boolean  @default(true)
+  
+  // Relations
+  appointments Appointment[]
+  
+  @@map("services")
+}
+
+model Appointment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  startTime DateTime
+  endTime   DateTime
+  status    AppointmentStatus @default(SCHEDULED)
+  notes     String?
+  
+  // Relations
+  client    User    @relation(fields: [clientId], references: [id])
+  clientId  String
+  animal    Animal  @relation(fields: [animalId], references: [id])
+  animalId  String
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId String
+  
+  treatmentNotes TreatmentNote[]
+  reminders      Reminder[]
+  
+  @@map("appointments")
+}
+
+model TreatmentNote {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  content   String
+  diagnosis String?
+  treatment String?
+  followUp  String?
+  
+  // Relations
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  appointmentId String
+  animal        Animal      @relation(fields: [animalId], references: [id])
+  animalId      String
+  practitioner  User        @relation(fields: [practitionerId], references: [id])
+  practitionerId String
+  files         File[]
+  
+  @@map("treatment_notes")
+}
+
+model Reminder {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  type          ReminderType
+  message       String
+  messageFr     String
+  remindAt      DateTime
+  sent          Boolean  @default(false)
+  
+  // Relations
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  appointmentId String
+  
+  @@map("reminders")
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  slug        String   @unique
+  title       String
+  titleFr     String
+  excerpt     String?
+  excerptFr   String?
+  content     String   // markdown
+  contentFr   String
+  coverImage  String?
+  published   Boolean  @default(false)
+  seoTitle    String?
+  seoTitleFr  String?
+  seoDesc     String?
+  seoDescFr   String?
+  
+  // Relations
+  author   User?   @relation(fields: [authorId], references: [id])
+  authorId String?
+  tags     Tag[]
+  
+  @@map("blog_posts")
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  posts BlogPost[]
+  
+  @@map("tags")
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  responded Boolean  @default(false)
+  
+  @@map("contact_submissions")
+}
+
+model File {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  url       String
+  fileName  String
+  mimeType  String
+  sizeB     Int
+  
+  // Relations
+  ownerUser      User?          @relation(fields: [ownerUserId], references: [id])
+  ownerUserId    String?
+  ownerAnimal    Animal?        @relation(fields: [ownerAnimalId], references: [id])
+  ownerAnimalId  String?
+  treatmentNote  TreatmentNote? @relation(fields: [treatmentNoteId], references: [id])
+  treatmentNoteId String?
+  
+  @@map("files")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  userId    String?
+  action    String
+  meta      Json?
+  
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+}
+
+model Todo {
+  id          String       @id @default(cuid())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  task        String
+  priority    TodoPriority @default(MEDIUM)
+  dueDate     DateTime?
+  description String?
+  completed   Boolean      @default(false)
+
+  // Relation avec User
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@map("todos")
+}
+
+enum UserRole {
+  CLIENT
+  PRACTITIONER
+  ADMIN
+}
+
+enum AnimalGender {
+  MALE
+  FEMALE
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ReminderType {
+  APPOINTMENT_CONFIRMATION
+  APPOINTMENT_REMINDER
+  FOLLOW_UP
+  BIRTHDAY
+  MEDICATION
+  CHECKUP
+  MANUAL
+}
+
+enum TodoPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
